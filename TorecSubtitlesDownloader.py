@@ -11,15 +11,10 @@ import sys
 import re
 import zlib
 import os.path
-import bs4
+from BeautifulSoup import BeautifulSoup
 
-import xbmcaddon
 
 from SubtitleHelper import log
-
-__addon__      = xbmcaddon.Addon()
-__version__    = __addon__.getAddonInfo('version') # Module version
-__scriptname__ = __addon__.getAddonInfo('name')
 
 def convert_file(inFile,outFile):
 	''' Convert a file in cp1255 encoding to utf-8
@@ -49,7 +44,7 @@ class SubtitlePage(object):
         self.options = self._parseOptions(data)
         
     def _parseOptions(self, data):
-        subtitleSoup = bs4.BeautifulSoup(data)
+        subtitleSoup = BeautifulSoup(data)
         subtitleOptions = subtitleSoup("div", {'class' : 'download_box' })[0].findAll("option")
         filteredSubtitleOptions = filter(lambda x: x.has_key("value"), subtitleOptions)
         return map(lambda x: SubtitleOption(x.string.strip(), x["value"]), filteredSubtitleOptions)
@@ -106,7 +101,7 @@ class TorecSubtitlesDownloader:
         return self.DEFAULT_COOKIE % {"screen_width" : 1760, 
                                       "subId" : subID, 
                                       "current_datetime" : currentTime}
-    
+
     def searchMovieName(self, movieName):
         response = self.urlHandler.request("%s/ssearch.asp" % self.BASE_URL, {"search" : movieName})
         match = re.search('sub\.asp\?sub_id=(\w+)', response.data)
@@ -174,16 +169,19 @@ class TorecSubtitlesDownloader:
             zip.close()
             # Remove the unneeded zip file
             os.remove(fileName)
-            
-            for srtFile in os.listdir(zipDirPath):
-	        if srtFile.endswith(".srt"):
-                    srtFile = os.path.join(zipDirPath,srtFile)
-                    
-                    #convert file from cp1255 to utf-8
-                    tempFileName=srtFile+ ".tmp"
-                    convert_file(srtFile,tempFileName)
-                    shutil.copy(tempFileName,srtFile)
-                    os.remove(tempFileName)
+            if len((os.listdir(zipDirPath))) > 1:
+                raise RuntimeError("subtitle directory should be temporary, sound two files in it")
+            srtFile = os.listdir(zipDirPath)[0]
+            if srtFile.endswith(".srt"):
+                srtFile = os.path.join(zipDirPath,srtFile)
+                
+                #convert file from cp1255 to utf-8
+                log(__name__, "Convering to utf-8 %s" % srtFile)
+                tempFileName=srtFile+ ".tmp"
+                convert_file(srtFile,tempFileName)
+                shutil.copy(tempFileName,srtFile)
+                os.remove(tempFileName)
+            return os.path.basename(srtFile)
             
     def sanitize(self, name):
         return re.sub('[\.\[\]\-]', self.DEFAULT_SEPERATOR, name.upper())
